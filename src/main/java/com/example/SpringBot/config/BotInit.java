@@ -1,6 +1,7 @@
 package com.example.SpringBot.config;
 
 import com.example.SpringBot.service.TelegramBot;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
-
+@Slf4j
 @Component
 public class BotInit {
     @Autowired
@@ -21,6 +22,7 @@ public class BotInit {
         try{
             telegramBotsApi.registerBot(bot);
         } catch (TelegramApiException e){
+            log.error("Error setting bot's command list: " + e.getMessage());
         }
     }
 }
