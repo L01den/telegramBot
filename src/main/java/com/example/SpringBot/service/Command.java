@@ -1,15 +1,15 @@
-//package com.example.SpringBot.service;
-//
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Component;
-//
-//@Slf4j
-//@Component
-//public class Command {
-//    TelegramBot bot;
-//    public void startCommand(long chatId, String name){
-//        String answer = "Привет, " + name + "  :)";
-//        log.info("Replace to user" + name);
-//        bot.sendMessage(chatId, answer);
-//    }
-//}
+package com.example.SpringBot.service;
+
+import com.example.SpringBot.dataBase.Dao;
+import com.example.SpringBot.model.Joke;
+
+import java.util.Random;
+
+public class Command {
+    public String getJoke(){
+        Dao dao = new Dao();
+        Joke jokes = dao.findJoke(3);
+        String answer = jokes.getJokeText();
+        return answer;
+    }
+}

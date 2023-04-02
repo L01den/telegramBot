@@ -1,9 +1,6 @@
 package com.example.SpringBot.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Data;
 
 import java.sql.Timestamp;
@@ -13,8 +10,9 @@ import java.time.LocalDate;
 @Entity(name = "salary")
 public class Salary {
         @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
         private LocalDate date;
-//        @GeneratedValue(strategy = GenerationType.IDENTITY)
         private int money;
-//        private String userName;
+        private String userName;
 }
