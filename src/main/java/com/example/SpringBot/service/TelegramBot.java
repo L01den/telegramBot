@@ -30,7 +30,6 @@ import java.util.List;
 public class TelegramBot extends TelegramLongPollingBot {
     @Autowired
     private UserRepo userRepo;
-    private Command command = new Command();
     @Autowired
     private SalaryInterface salaryInterface;
     final BotConfig config;
@@ -92,7 +91,8 @@ public class TelegramBot extends TelegramLongPollingBot {
             String text = "";
 
             if(callbackData.equals(YES)){
-                text = command.getJoke();
+//                text = command.getJoke();
+                text = "Шутить про рост - низко.\nДавайте будем выше этого.";
             } else{
                 text = "Ну как хочешь O_o";
             }
@@ -120,13 +120,15 @@ public class TelegramBot extends TelegramLongPollingBot {
         List<KeyboardRow> keyboardRows = new ArrayList<>();
         KeyboardRow row = new KeyboardRow();
         row.add("Хочешь_шутку?");
-        row.add("weather");
+
+//        row.add("weather");
+//        keyboardRows.add(row);
+//        row = new KeyboardRow();
+//        row.add("register");
+//        row.add("check data");
+//        row.add("delite data");
         keyboardRows.add(row);
-        row = new KeyboardRow();
-        row.add("register");
-        row.add("check data");
-        row.add("delite data");
-        keyboardRows.add(row);
+        keyboardMarkup.setResizeKeyboard(true);
         keyboardMarkup.setKeyboard(keyboardRows);
         message.setReplyMarkup(keyboardMarkup);
 
@@ -161,8 +163,8 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private void compareSalariesCommand(long chatId, String revenue, Message msg){
         int money = Integer.parseInt(revenue);
-        String name = msg.getChat().getUserName();
-//        String name = "Ray";
+//        String name = msg.getChat().getUserName();
+        String name = "Ray";
         int salary;
         if(name.equals("l01d3n")){
             salary = (int) (((money * 0.02) - 300)/10);
@@ -179,7 +181,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         Salary sal = new Salary();
         sal.setMoney(salary);
         sal.setDate(LocalDate.now());
-//        sal.setDate(LocalDate.of(2023, 03, 30));
+//        sal.setDate(LocalDate.of(2023, 04, 19));
         sal.setUserName(name);
         salaryInterface.save(sal);
     }
@@ -187,7 +189,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void get(long chatId){
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
-        message.setText("Точно хочешь шутку, тебе предупреждали?");
+        message.setText("Точно хочешь шутку, тебя предупреждали?");
 
         InlineKeyboardMarkup inlineKeyboard = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
