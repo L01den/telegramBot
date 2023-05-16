@@ -20,80 +20,97 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 public class TelegramBot extends TelegramLongPollingBot {
+
+
     @Autowired
-    private UserRepo userRepo;
+    private final SalaryServices salaryServices;
     @Autowired
-    private SalaryInterface salaryInterface;
+    private final JokeServices jokeServices;
     final BotConfig config;
     final String YES = "YES_BUTTON";
     final String NO = "NO_BUTTON";
     static final String HELP_TEXT = "Бот умеет считать ЗП при вводе выручки\nНапример: salary 150300\nНа это пока всё :)";
 
-
-    public TelegramBot(BotConfig config){
+    @Autowired
+    public TelegramBot(SalaryServices salaryServices, JokeServices jokeServices, BotConfig config) {
+        this.salaryServices = salaryServices;
+        this.jokeServices = jokeServices;
         this.config = config;
-        List<BotCommand> listofCommand = new ArrayList<>();
-        listofCommand.add(new BotCommand("/start", "get a welcome message"));
-        listofCommand.add(new BotCommand("/mydata", "get your data stored"));
-        listofCommand.add(new BotCommand("/deletedata", "delete my data"));
-        listofCommand.add(new BotCommand("/help", "info how bot"));
-        listofCommand.add(new BotCommand("/setting", "set your preferences"));
-        try {
-            this.execute(new SetMyCommands(listofCommand, new BotCommandScopeDefault(), null));
-        } catch (TelegramApiException e){
-            log.error("Error setting bot's command list: " + e.getMessage());
-        }
+//        List<BotCommand> listOfCommand = new ArrayList<>();
+//        listOfCommand.add(new BotCommand("/start", "Начало работы"));
+//        listOfCommand.add(new BotCommand("/help", "Информация о боте"));
+//        listOfCommand.add(new BotCommand("/toDo", "Тут ещё будут команды"));
+//        try {
+//            this.execute(new SetMyCommands(listOfCommand, new BotCommandScopeDefault(), null));
+//        } catch (TelegramApiException e) {
+//            log.error("Error setting bot's command list: " + e.getMessage());
+//        }
     }
 
     @Override
     public void onUpdateReceived(Update update) {
-        if(update.hasMessage() && update.getMessage().hasText()){
+        if (update.hasMessage() && update.getMessage().hasText()) {
             String msgText = update.getMessage().getText();
             String[] msgParse = msgText.split(" ");
             String message = msgParse[0];
             String data = "";
-            if(msgParse.length > 1){
-                data = msgParse[1];
+            String comment = "";
+            switch (msgParse.length) {
+                case 2:
+                    data = msgParse[1];
+                    break;
+                case 3:
+                    data = msgParse[1];
+                    comment = msgParse[2];
+                    break;
             }
             long chatId = update.getMessage().getChatId();
+            String userName = update.getMessage().getChat().getUserName();
 
-            switch (message){
-                case"/start":
+            switch (message.toLowerCase()) {
+                case "/start":
                     startCommand(chatId, update.getMessage().getChat().getFirstName());
-                    registerUser(chatId, update.getMessage());
                     break;
                 case "salary":
-                    compareSalariesCommand(chatId, data, update.getMessage());
+                    salarySave(chatId, data, update.getMessage());
                     break;
-                case "get":
-                    // TO DO
+                case "+зп":
+                    salaryServices.addMoney(chatId, data, comment, update.getMessage());
+                    sendMessage(chatId, "Всё ОК)");
                     break;
-                case "Хочешь_шутку?":
+                case "вчера":
+                    salaryYesterday(chatId, userName);
+                    break;
+                case "хочешь_шутку?":
                     get(chatId);
+                    break;
+                case "моя_зарплата":
+                    getByAllSalary(chatId, userName);
                     break;
                 case "/help":
                     sendMessage(chatId, HELP_TEXT);
                     break;
-                default: sendMessage(chatId, "Я не знаю такой команды");
+                default:
+                    sendMessage(chatId, "Я не знаю такой команды");
             }
-        } else if(update.hasCallbackQuery()){
+        } else if (update.hasCallbackQuery()) {
             String callbackData = update.getCallbackQuery().getData();
             int messageId = update.getCallbackQuery().getMessage().getMessageId();
             long chatId = update.getCallbackQuery().getMessage().getChatId();
             String text = "";
 
-            if(callbackData.equals(YES)){
-//                text = command.getJoke();
-                text = "Шутить про рост - низко.\nДавайте будем выше этого.";
-            } else{
+            if (callbackData.equals(YES)) {
+                text = jokeServices.getJoke();
+            } else {
                 text = "Ну как хочешь O_o";
             }
             EditMessageText msg = new EditMessageText();
@@ -101,9 +118,9 @@ public class TelegramBot extends TelegramLongPollingBot {
             msg.setText(text);
             msg.setMessageId(messageId);
 
-            try{
+            try {
                 execute(msg);
-            } catch (TelegramApiException e){
+            } catch (TelegramApiException e) {
                 log.error("Error setting bot's command list: " + e.getMessage());
             }
         }
@@ -111,7 +128,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     }
 
-    private void sendMessage(long chatId, String textToSend){
+
+
+    private void sendMessage(long chatId, String textToSend) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(textToSend);
@@ -122,9 +141,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         row.add("Хочешь_шутку?");
 
 //        row.add("weather");
-//        keyboardRows.add(row);
-//        row = new KeyboardRow();
-//        row.add("register");
+        keyboardRows.add(row);
+        row = new KeyboardRow();
+        row.add("моя_зарплата");
 //        row.add("check data");
 //        row.add("delite data");
         keyboardRows.add(row);
@@ -133,60 +152,27 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setReplyMarkup(keyboardMarkup);
 
 
-        try{
+        try {
             execute(message);
-        } catch (TelegramApiException e){
+        } catch (TelegramApiException e) {
             log.error("Error setting bot's command list: " + e.getMessage());
         }
     }
 
-    private void startCommand(long chatId, String name){
+    private void startCommand(long chatId, String name) {
         String answer = EmojiParser.parseToUnicode("Привет, " + name + " :blush:");
         log.info("Replace to user" + name);
         sendMessage(chatId, answer);
     }
 
-    private void registerUser(long chatId, Message msg) {
-        if(userRepo.findById(chatId).isEmpty()){
-            var chat = msg.getChat();
-            User user = new User();
-            user.setChatId(chatId);
-            user.setFirstName(chat.getFirstName());
-            user.setLastName(chat.getLastName());
-            user.setUserName(chat.getUserName());
-            user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
-            userRepo.save(user);
-            log.info("User save" + user);
-
-        }
-    }
-
-    private void compareSalariesCommand(long chatId, String revenue, Message msg){
-        int money = Integer.parseInt(revenue);
-//        String name = msg.getChat().getUserName();
-        String name = "Ray";
-        int salary;
-        if(name.equals("l01d3n")){
-            salary = (int) (((money * 0.02) - 300)/10);
-        } else{
-            salary = (int) (((money * 0.02) + 200)/10);
-        }
-        salary = salary*10;
+    private void salarySave(long chatId, String revenue, Message msg){
+        int salary = salaryServices.calculateSalary(chatId, revenue, msg);
         String textSend = Integer.toString(salary);
-        saveSalary(salary, name);
         sendMessage(chatId, textSend);
     }
 
-    private void saveSalary(int salary, String name) {
-        Salary sal = new Salary();
-        sal.setMoney(salary);
-        sal.setDate(LocalDate.now());
-//        sal.setDate(LocalDate.of(2023, 04, 19));
-        sal.setUserName(name);
-        salaryInterface.save(sal);
-    }
 
-    private void get(long chatId){
+    private void get(long chatId) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText("Точно хочешь шутку, тебя предупреждали?");
@@ -195,11 +181,11 @@ public class TelegramBot extends TelegramLongPollingBot {
         List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
         List<InlineKeyboardButton> rowInLine = new ArrayList<>();
         InlineKeyboardButton yesButton = new InlineKeyboardButton();
-        yesButton.setText("Yes");
+        yesButton.setText("Да");
         yesButton.setCallbackData(YES);
 
         InlineKeyboardButton noButton = new InlineKeyboardButton();
-        noButton.setText("No");
+        noButton.setText("Нет");
         noButton.setCallbackData(NO);
 
         rowInLine.add(yesButton);
@@ -210,12 +196,24 @@ public class TelegramBot extends TelegramLongPollingBot {
         inlineKeyboard.setKeyboard(rowsInLine);
         message.setReplyMarkup(inlineKeyboard);
 
-        try{
+        try {
             execute(message);
-        } catch (TelegramApiException e){
+        } catch (TelegramApiException e) {
             log.error("Error setting bot's command list: " + e.getMessage());
         }
 
+    }
+
+    public void getByAllSalary(long chatId, String name){
+        String textSend = salaryServices.getAllSalary(name);
+//        String textSend = salaryServices.getAllSalary("Ray");
+        sendMessage(chatId, textSend);
+    }
+
+    private void salaryYesterday(long chatId, String name) {
+        String textSend = salaryServices.getSalaryYesterday(name);
+//        String textSend = salaryServices.getAllSalary("Ray");
+        sendMessage(chatId, textSend);
     }
 
     @Override
