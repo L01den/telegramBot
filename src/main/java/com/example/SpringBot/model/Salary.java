@@ -35,4 +35,5 @@ public class Salary {
         public String toString() {
                 return date + " - " + money + "(" + comment + ")";
         }
+
 }
