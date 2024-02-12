@@ -13,11 +13,13 @@ import java.util.List;
 public interface SalaryRepository extends JpaRepository<Salary, Integer> {
     List<Salary> findByUserName(String name);
 
-    Salary findByDateAndUserName(LocalDate date, String name);
+    Salary findByDateAndUserNameAndComment(LocalDate date, String name, String comment);
 
     List<Salary> findByUserNameAndDateBetween(String name, LocalDate startDate, LocalDate endDate);
 
     Salary findFirstByUserNameOrderByIdDesc(String userName);
+
+    List<Salary> findAll();
 
     @Query("SELECT SUM(money) FROM salary WHERE userName = ?1 and date BETWEEN ?2 AND ?3")
     int findSumInAMonth(String name, LocalDate startDate, LocalDate endDate);

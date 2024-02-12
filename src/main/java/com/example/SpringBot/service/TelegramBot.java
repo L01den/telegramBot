@@ -4,12 +4,15 @@ import com.example.SpringBot.config.BotConfig;
 import com.example.SpringBot.model.Month;
 import com.vdurmont.emoji.EmojiParser;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
@@ -20,6 +23,8 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
@@ -37,10 +42,10 @@ public class TelegramBot extends TelegramLongPollingBot {
     final BotConfig config;
     final String YES = "YES_BUTTON";
     final String NO = "NO_BUTTON";
-    static final String HELP_TEXT = "Мои команды\n1. Посчитать зп за сегодня(ввседи команду salary и выручку, через пробел) Например: salary 150300\n" +
-            "2. Добавить зп вручную: +зп 8500 отпуск (команда, сумма денег, коментарий если нужен)\n" +
-            "3. Посмотреть зп за месяц: month 05 (команда, месяц) \n" +
-            "4. Посмотреть сумму за за месяц: sum 11 (команда, месяц)";
+    static final String HELP_TEXT = "Мои команды\n1. Посчитать зп за сегодня(введи команду S и выручку, через пробел) Например: 's 150300'\n" +
+            "2. Добавить зп вручную:\n '+ 8500 отпуск' (команда, сумма денег, коментарий если нужен)\n" +
+            "3. Посмотреть зп за месяц:\n 'mon 05 23' (команда, месяц, год) \n" +
+            "4. Посмотреть сумму за за месяц: 'sum 11 24' (команда, месяц, год)";
 
     @Autowired
     public TelegramBot(SalaryServices salaryServices, JokeServices jokeServices, BotConfig config) {
@@ -51,8 +56,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         listOfCommand.add(new BotCommand("/start", "Начало работы"));
         listOfCommand.add(new BotCommand("/last", "Покажет зп за прошлую смену"));
         listOfCommand.add(new BotCommand("/joke", "Хочешь шутку?"));
-        listOfCommand.add(new BotCommand("/all", "Показывает всю зп по дням"));
-
         listOfCommand.add(new BotCommand("/help", "Список комнад"));
 //        listOfCommand.add(new BotCommand("/toDo", "Тут ещё будут команды"));
         try {
@@ -62,44 +65,57 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
+    /**
+     * dataOne - 1. выручка за день, из которой считается зп; 2. другие данные которые идут первыми оп порядку
+     * dataTwo - данные которые идут вторые по порядку
+     * @param update
+     */
+
     @Override
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage().hasText()) {
             String msgText = update.getMessage().getText();
             String[] msgParse = msgText.split(" ");
             String message = msgParse[0];
-            String revenue = "";
-            String data = "";
+            String dataOne = "";
+            String dataTwo = "";
             switch (msgParse.length) {
                 case 2:
-                    revenue = msgParse[1];
+                    dataOne = msgParse[1];
                     break;
                 case 3:
-                    revenue = msgParse[1];
-                    data = msgParse[2];
+                    dataOne = msgParse[1];
+                    dataTwo = msgParse[2];
                     break;
             }
             long chatId = update.getMessage().getChatId();
 
             switch (message.toLowerCase()) {
                 case "/start":
-                    startCommand(chatId, update.getMessage().getChat().getFirstName());
-                    break;
-                case "salary":
-                    salarySave(chatId, revenue, update.getMessage());
+                    startCommand(chatId, update.getMessage());
                     break;
                 case "s":
-                    temporaryCommand(chatId, revenue, data);
+                    salarySave(chatId, dataOne, update.getMessage());
                     break;
-                case "+зп":
-                    salaryServices.addMoney(revenue, data, update.getMessage());
-                    sendMessage(chatId, "Всё ОК)");
+                case "sal":
+                    temporaryCommand(chatId, dataOne, dataTwo);
+                    break;
+                case "+":
+                    salaryServices.addMoney(dataOne, dataTwo, update.getMessage());
+//                    починить
+//                    sendMessage(chatId, "Всё ОК)");
+                    break;
+                case "get":
+                    try {
+                        exportToExcel(chatId, update.getMessage());
+                    } catch (TelegramApiException e) {
+                        throw new RuntimeException(e);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     break;
                 case "/joke":
                     sendMessage(chatId, jokeServices.getJoke());
-                    break;
-                case "/all":
-                    getByAllSalary(chatId, update.getMessage().getChat().getUserName());
                     break;
                 case "/last":
                     lastSalary(chatId, update.getMessage().getChat().getUserName());
@@ -110,11 +126,11 @@ public class TelegramBot extends TelegramLongPollingBot {
 //                case "моя_зарплата":
 //                    actionSelection(chatId);
 //                    break;
-                case "month":
-                    getSalaryInAMonth(chatId, update.getMessage().getChat().getUserName(), revenue);
+                case "mon":
+                    getSalaryInAMonth(chatId, update.getMessage().getChat().getUserName(), dataOne, dataTwo);
                     break;
                 case "sum":
-                    sumSalaryInAMonth(chatId, update.getMessage().getChat().getUserName(), revenue);
+                    sumSalaryInAMonth(chatId, update.getMessage().getChat().getUserName(), dataOne, dataTwo);
                     break;
                 case "/help":
                     sendMessage(chatId, HELP_TEXT);
@@ -162,6 +178,28 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     }
 
+    private void exportToExcel(long chatId, Message msg) throws TelegramApiException, IOException {
+        String userName = msg.getChat().getUserName();
+        if(userName.equals("l01d3n")){
+            sendMessage(chatId, "Я вас понял, сейчас всё сделаю!");
+            salaryServices.exportToExcel();
+//            String path = "A:\\java_lesson\\testProject\\SpringBotUpdata\\src\\main\\resources\\doc\\salary_" + LocalDate.now() + ".xlsx";
+            String path = "src\\main\\resources\\doc";
+
+            File doc = new File(path + "\\salary_" + LocalDate.now() + ".xlsx");
+            InputFile sendFile = new InputFile(doc);
+            SendDocument document = new SendDocument();
+            document.setChatId(chatId);
+            document.setDocument(sendFile);
+
+            execute(document);
+
+            FileUtils.cleanDirectory(new File(path));
+        } else{
+            sendMessage(chatId, "Я не знаю такой команды");
+        }
+    }
+
     private void sendMessage(long chatId, String textToSend) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
@@ -188,9 +226,11 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private void startCommand(long chatId, String name) {
+    private void startCommand(long chatId, Message msg) {
+        String name = msg.getChat().getFirstName();
         String answer = EmojiParser.parseToUnicode("Привет, " + name + " :blush:");
         log.info("Replace to user" + name);
+        System.out.println(msg.getChat().getUserName());
         sendMessage(chatId, answer);
     }
 
@@ -323,7 +363,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     public void getByAllSalary(long chatId, String name) {
         String textSend = salaryServices.getAllSalary(name);
-//        String textSend = salaryServices.getAllSalary("Ray");
         sendMessage(chatId, textSend);
     }
 
@@ -336,33 +375,32 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private void lastSalary(long chatId, String name) {
         String textSend = salaryServices.getLastSalary(name);
-//        String textSend = salaryServices.getAllSalary("Ray");
         sendMessage(chatId, textSend);
     }
 
     private String lastSalary(String name) {
         String textSend = salaryServices.getLastSalary(name);
-//        String textSend = salaryServices.getAllSalary("Ray");
         return textSend;
     }
 
-    private void getSalaryInAMonth(long chatId, String name, String data) {
+    private void getSalaryInAMonth(long chatId, String name, String data, String yearString) {
         int month = Integer.valueOf(data);
-        LocalDate startDay = LocalDate.of(LocalDate.now().getYear(), month, 1);
+        int year = Integer.valueOf("20" + yearString);
+//        LocalDate startDay = LocalDate.of(LocalDate.now().getYear(), month, 1);
+        LocalDate startDay = LocalDate.of(year, month, 1);
         LocalDate endDay = (LocalDate) TemporalAdjusters.lastDayOfMonth().adjustInto(startDay);
         String textSend = salaryServices.getSalaryInAMonth(name, startDay, endDay);
         sendMessage(chatId, textSend);
     }
 
-    private void sumSalaryInAMonth(long chatId, String name, String data) {
+    private void sumSalaryInAMonth(long chatId, String name, String data, String yearString) {
         int month = Integer.valueOf(data);
-        LocalDate startDay = LocalDate.of(LocalDate.now().getYear(), month, 1);
+        int year = Integer.valueOf("20" + yearString);
+        LocalDate startDay = LocalDate.of(year, month, 1);
         LocalDate endDay = (LocalDate) TemporalAdjusters.lastDayOfMonth().adjustInto(startDay);
         int sum = salaryServices.getSumSalaryInAMonth(name, startDay, endDay);
         String textSend = String.valueOf(sum);
         sendMessage(chatId, textSend);
-        System.out.println(startDay);
-        System.out.println(endDay);
     }
 
     @Override
@@ -387,9 +425,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         String userName = "";
 
         if(name.equals("1")){
-            userName = "Ray";
+            userName = "Raisa76";
         } else {
-            userName = "Nataxa";
+            userName = "NataT86";
         }
         int salary = salaryServices.calculateSalary(revenue, userName);
         String textSend = userName + " - " + salary;
