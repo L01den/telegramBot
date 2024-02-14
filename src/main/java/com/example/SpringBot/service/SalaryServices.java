@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class SalaryServices {
 
-    @Autowired
+
     public final SalaryRepository salaryRepository;
 
     public SalaryServices(SalaryRepository salaryRepository) {
@@ -119,10 +119,10 @@ public class SalaryServices {
         XSSFWorkbook workbook = new XSSFWorkbook();
         XSSFSheet sheet = workbook.createSheet("Salary");
 
-        List<Salary> listSalary = salaryRepository.findAll();
-//        List<Salary> listSalary = salaryRepository.findByUserNameAndDateBetween("l01d3n",
-//                LocalDate.of(2024, 01, 01),
-//                LocalDate.of(2024, 01, 10));
+//        List<Salary> listSalary = salaryRepository.findAll();
+        List<Salary> listSalary = salaryRepository.findByUserNameAndDateBetween("l01d3n",
+                LocalDate.of(2024, 01, 01),
+                LocalDate.of(2024, 02, 10));
         writeHeaderLine(sheet, workbook);
         writeDataLines(sheet, workbook, listSalary);
 

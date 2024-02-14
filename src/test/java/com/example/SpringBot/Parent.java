@@ -13,9 +13,5 @@ class SpringBotApplicationTests {
 	void contextLoads() {
 	}
 
-
-
-
-
 }
 

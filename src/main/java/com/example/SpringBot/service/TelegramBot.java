@@ -35,9 +35,9 @@ import java.util.List;
 public class TelegramBot extends TelegramLongPollingBot {
 
 
-    @Autowired
+
     private final SalaryServices salaryServices;
-    @Autowired
+
     private final JokeServices jokeServices;
     final BotConfig config;
     final String YES = "YES_BUTTON";
@@ -194,7 +194,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             execute(document);
 
-            FileUtils.cleanDirectory(new File(path));
+//            FileUtils.cleanDirectory(new File(path));
         } else{
             sendMessage(chatId, "Я не знаю такой команды");
         }
@@ -230,7 +230,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         String name = msg.getChat().getFirstName();
         String answer = EmojiParser.parseToUnicode("Привет, " + name + " :blush:");
         log.info("Replace to user" + name);
-        System.out.println(msg.getChat().getUserName());
         sendMessage(chatId, answer);
     }
 
