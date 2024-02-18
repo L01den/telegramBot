@@ -159,9 +159,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 case "day":
                     text = lastSalary(update.getMessage().getChat().getUserName());
                     break;
-                case "all":
-                    getByAllSalary(chatId, update.getMessage().getChat().getUserName());
-                    break;
+
             }
             EditMessageText msg = new EditMessageText();
             msg.setChatId(chatId);
